@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:welcome/view/custom_button.dart';
@@ -6,7 +7,9 @@ import 'package:welcome/view/home_screen.dart';
 class LogIn extends StatelessWidget {
   LogIn({Key? key}) : super(key: key);
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _email = TextEditingController();
+  final TextEditingController email_1 = TextEditingController();
+  final TextEditingController password_1 = TextEditingController();
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -27,7 +30,7 @@ class LogIn extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 35),
                     child: TextFormField(
-                      controller: _email,
+                      controller: email_1,
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(
                           labelText: 'Email',
@@ -49,6 +52,7 @@ class LogIn extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 35),
                     child: TextFormField(
+                      controller: password_1,
                       keyboardType: TextInputType.visiblePassword,
                       decoration: const InputDecoration(
                           labelText: 'Password',
@@ -74,21 +78,28 @@ class LogIn extends StatelessWidget {
                         onTap: () async {
                           // Validate returns true if the form is valid, or false otherwise.
                           if (_formKey.currentState!.validate()) {
-                            final SharedPreferences prefs =
-                                await SharedPreferences.getInstance();
-                            await prefs.setString('email', _email.text);
-                            final String? savedEmail = prefs.getString('email');
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    HomePage(email: savedEmail),
-                              ),
-                            );
-                            // If the form is valid, display a snackbar. In the real world,
-                            // you'd often call a server or save the information in a database.
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Processing Data')),
-                            );
+                            bool result = await firebaseLogin(
+                                email_1.text, password_1.text);
+
+                            if (result) {
+                              final SharedPreferences prefs =
+                                  await SharedPreferences.getInstance();
+                              await prefs.setString('email', email_1.text);
+
+                              final String? savedEmail =
+                                  prefs.getString('email');
+
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      HomePage(email: savedEmail),
+                                ),
+                              );
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('LogIn Failed')),
+                              );
+                            }
                           }
                         },
                         buttonColor: Colors.blueAccent,
@@ -124,5 +135,22 @@ class LogIn extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<bool> firebaseLogin(String email, String password) async {
+    try {
+      final credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+      if (credential.user != null) {
+        return true;
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        print('No user found for that email.');
+      } else if (e.code == 'wrong-password') {
+        print('Wrong password provided for that user.');
+      }
+    }
+    return false;
   }
 }
